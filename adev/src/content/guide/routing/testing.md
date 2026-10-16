@@ -309,6 +309,27 @@ export class Search {
 }
 ```
 
+If you prefer to describe the target as structured data instead of a URL string, use [`navigate`](api/router/testing/RouterTestingHarness#navigate). It accepts the same commands and [`NavigationExtras`](api/router/NavigationExtras) as [`Router.navigate`](api/router/Router#navigate), so the router encodes query parameter values and fragments for you:
+
+```ts {header: 'search.spec.ts'}
+it('should read search term and fragment from navigation extras', async () => {
+  component = await harness.navigate(
+    ['/search'],
+    {queryParams: {q: 'angular'}, fragment: 'results'},
+    Search,
+  );
+
+  expect(component.searchTerm()).toBe('angular');
+  expect(TestBed.inject(Router).url).toBe('/search?q=angular#results');
+});
+```
+
+To perform the initial navigation when you create the harness, pass the commands and extras to `RouterTestingHarness.create()`:
+
+```ts
+const harness = await RouterTestingHarness.create(['/search'], {queryParams: {q: 'angular'}});
+```
+
 ## Best practices for router testing
 
 1. **Use RouterTestingHarness** - For testing routed components, use [`RouterTestingHarness`](api/router/testing/RouterTestingHarness) which provides a cleaner API and eliminates the need for test host components. It offers direct component access, built-in navigation, and better type safety. However, it isn't as suitable for some scenarios, such as testing named outlets, where you may need to create custom host components.

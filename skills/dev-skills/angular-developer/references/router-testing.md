@@ -41,7 +41,9 @@ describe('Dashboard Component Routing', () => {
 ### Key Concepts
 
 1.  **`provideRouter([...])`**: Provide a test-specific routing configuration. This should include the routes necessary for the component-under-test to function correctly.
-2.  **`RouterTestingHarness.create(initialUrl?)`**: Asynchronously creates the harness and optionally performs an initial navigation.
+2.  **`RouterTestingHarness.create(initialUrl?)`**: Asynchronously creates the harness and optionally performs an initial navigation to a URL string.
+3.  **`RouterTestingHarness.create(commands, extras?)`**: Creates the harness and performs an initial navigation from commands and `NavigationExtras` (for example `queryParams` or `fragment`), like `Router.navigate`.
+4.  **`harness.navigateByUrl(url, ComponentType?)`** and **`harness.navigate(commands, extras?, ComponentType?)`**: Navigate and wait for the navigation (including redirects) to complete. Both resolve with the activated component instance.
 
 ## Writing Router Tests
 
@@ -80,9 +82,35 @@ it('should get the activated component directly', async () => {
 });
 ```
 
+### Example: Navigating with Query Parameters and Fragments
+
+Use `harness.navigate()` when the navigation needs `NavigationExtras`. It mirrors `Router.navigate`, so you don't need to build and encode the URL string yourself.
+
+```ts
+it('should read the search term from query parameters', async () => {
+  const search = await harness.navigate(
+    ['/search'],
+    {queryParams: {q: 'angular'}, fragment: 'results'},
+    Search, // Optional: throws if a different component is activated
+  );
+
+  expect(TestBed.inject(Router).url).toEqual('/search?q=angular#results');
+  expect(search.searchTerm()).toBe('angular');
+});
+
+it('can perform the initial navigation with extras', async () => {
+  // Use this instead of the harness from beforeEach: only one harness can be created per test.
+  const harness = await RouterTestingHarness.create(['/search'], {queryParams: {q: 'angular'}});
+
+  expect(TestBed.inject(Router).url).toEqual('/search?q=angular');
+});
+```
+
+Relative commands are resolved from the root unless you pass `relativeTo` in the extras, because the harness has no current route of its own.
+
 ### Best Practices
 
-- **Navigate with the Harness:** Always use `harness.navigateByUrl()` to simulate navigation. This method returns a promise that resolves with the instance of the activated component.
+- **Navigate with the Harness:** Always use `harness.navigateByUrl()` or `harness.navigate()` to simulate navigation. Both return a promise that resolves with the instance of the activated component. Prefer `harness.navigate()` when you need `NavigationExtras` such as `queryParams`, `fragment`, `relativeTo` or `state`.
 - **Access the Router State:** Inject `Router` from `TestBed` to inspect the live router state.
-- **Get Activated Components:** Use the component returned by `navigateByUrl(url, ComponentType)`. After application-driven navigation, read `harness.routeDebugElement?.componentInstance`.
+- **Get Activated Components:** Use the component returned by `navigateByUrl(url, ComponentType)` or `navigate(commands, extras, ComponentType)`. After application-driven navigation, read `harness.routeDebugElement?.componentInstance`.
 - **Wait for Stability:** After performing an action that causes navigation, always `await harness.fixture.whenStable()` to ensure the routing is complete before making assertions.

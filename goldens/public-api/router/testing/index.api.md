@@ -36,10 +36,13 @@ import { WritableSignal } from '@angular/core';
 // @public
 export class RouterTestingHarness {
     static create(initialUrl?: string): Promise<RouterTestingHarness>;
+    static create(commands: readonly any[], extras?: NavigationExtras): Promise<RouterTestingHarness>;
     detectChanges(): void;
     readonly fixture: ComponentFixture<{
         routerOutletData: WritableSignal<unknown>;
     }>;
+    navigate(commands: readonly any[], extras?: NavigationExtras): Promise<null | {}>;
+    navigate<T>(commands: readonly any[], extras: NavigationExtras | undefined, requiredRoutedComponentType: Type<T>): Promise<T>;
     navigateByUrl(url: string): Promise<null | {}>;
     navigateByUrl<T>(url: string, requiredRoutedComponentType: Type<T>): Promise<T>;
     get routeDebugElement(): DebugElement | null;

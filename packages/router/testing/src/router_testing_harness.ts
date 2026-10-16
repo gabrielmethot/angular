@@ -17,7 +17,12 @@ import {
   signal,
 } from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {Router, RouterOutlet, ɵafterNextNavigation as afterNextNavigation} from '../../index';
+import {
+  NavigationExtras,
+  Router,
+  RouterOutlet,
+  ɵafterNextNavigation as afterNextNavigation,
+} from '../../index';
 
 @Service()
 export class RootFixtureService {
@@ -70,10 +75,37 @@ export class RouterTestingHarness {
    *
    * @param initialUrl The target of navigation to trigger before returning the harness.
    */
-  static async create(initialUrl?: string): Promise<RouterTestingHarness> {
+  static async create(initialUrl?: string): Promise<RouterTestingHarness>;
+  /**
+   * Creates a `RouterTestingHarness` instance and performs an initial navigation based on the
+   * provided commands and extras.
+   *
+   * The `RouterTestingHarness` also creates its own root component with a `RouterOutlet` for the
+   * purposes of rendering route components.
+   *
+   * Throws an error if an instance has already been created.
+   * Use of this harness also requires `destroyAfterEach: true` in the `ModuleTeardownOptions`
+   *
+   * {@example router/testing/test/router_testing_harness_examples.spec.ts region='CreateWithCommands'}
+   *
+   * @param commands An array of URL fragments with which to construct the target URL of the initial
+   *     navigation. Passed to `Router.navigate`.
+   * @param extras Options that control how the initial navigation URL is constructed and how the
+   *     navigation is handled, such as `queryParams` and `fragment`. Passed to `Router.navigate`.
+   */
+  static async create(
+    commands: readonly any[],
+    extras?: NavigationExtras,
+  ): Promise<RouterTestingHarness>;
+  static async create(
+    initialUrlOrCommands?: string | readonly any[],
+    extras?: NavigationExtras,
+  ): Promise<RouterTestingHarness> {
     const harness = TestBed.inject(RootFixtureService).createHarness();
-    if (initialUrl !== undefined) {
-      await harness.navigateByUrl(initialUrl);
+    if (Array.isArray(initialUrlOrCommands)) {
+      await harness.navigate(initialUrlOrCommands, extras);
+    } else if (initialUrlOrCommands !== undefined) {
+      await harness.navigateByUrl(initialUrlOrCommands as string);
     }
     return harness;
   }
@@ -144,13 +176,90 @@ export class RouterTestingHarness {
    */
   async navigateByUrl<T>(url: string, requiredRoutedComponentType: Type<T>): Promise<T>;
   async navigateByUrl<T>(url: string, requiredRoutedComponentType?: Type<T>): Promise<T | null> {
+    return this.navigateAndResolve(
+      (router) => router.navigateByUrl(url),
+      requiredRoutedComponentType,
+    );
+  }
+
+  /**
+   * Triggers a `Router` navigation based on the provided commands and waits for it to complete.
+   *
+   * This is the equivalent of `Router.navigate` for the harness. It makes it possible to navigate
+   * with `NavigationExtras`, such as `queryParams`, `fragment` or `state`, without constructing a
+   * URL string by hand.
+   *
+   * {@example router/testing/test/router_testing_harness_examples.spec.ts region='NavigateWithExtras'}
+   *
+   * The root component with a `RouterOutlet` created for the harness is used to render `Route`
+   * components. The root component is reused within the same test in subsequent navigations.
+   *
+   * The harness has no current route of its own, so relative commands are resolved from the root
+   * unless an `ActivatedRoute` is provided through `extras.relativeTo`.
+   *
+   * @param commands An array of URL fragments with which to construct the target URL. Passed to
+   *     `Router.navigate`.
+   * @param extras Options that control how the target URL is constructed and how the navigation is
+   *     handled. Passed to `Router.navigate`.
+   * @returns The activated component instance of the `RouterOutlet` after navigation completes
+   *     (`null` if the outlet does not get activated).
+   */
+  async navigate(commands: readonly any[], extras?: NavigationExtras): Promise<null | {}>;
+  /**
+   * Triggers a `Router` navigation based on the provided commands and waits for it to complete.
+   *
+   * This is the equivalent of `Router.navigate` for the harness. It makes it possible to navigate
+   * with `NavigationExtras`, such as `queryParams`, `fragment` or `state`, without constructing a
+   * URL string by hand.
+   *
+   * {@example router/testing/test/router_testing_harness_examples.spec.ts region='NavigateWithExtras'}
+   *
+   * The root component with a `RouterOutlet` created for the harness is used to render `Route`
+   * components. The root component is reused within the same test in subsequent navigations.
+   *
+   * The harness has no current route of its own, so relative commands are resolved from the root
+   * unless an `ActivatedRoute` is provided through `extras.relativeTo`.
+   *
+   * @param commands An array of URL fragments with which to construct the target URL. Passed to
+   *     `Router.navigate`.
+   * @param extras Options that control how the target URL is constructed and how the navigation is
+   *     handled. Passed to `Router.navigate`.
+   * @param requiredRoutedComponentType After navigation completes, the required type for the
+   *     activated component of the `RouterOutlet`. If the outlet is not activated or a different
+   *     component is activated, this function will throw an error.
+   * @returns The activated component instance of the `RouterOutlet` after navigation completes.
+   */
+  async navigate<T>(
+    commands: readonly any[],
+    extras: NavigationExtras | undefined,
+    requiredRoutedComponentType: Type<T>,
+  ): Promise<T>;
+  async navigate<T>(
+    commands: readonly any[],
+    extras?: NavigationExtras,
+    requiredRoutedComponentType?: Type<T>,
+  ): Promise<T | null> {
+    return this.navigateAndResolve(
+      (router) => router.navigate(commands, extras),
+      requiredRoutedComponentType,
+    );
+  }
+
+  /**
+   * Runs the provided navigation, waits for it (and any redirects) to complete, and returns the
+   * component activated in the root `RouterOutlet`.
+   */
+  private async navigateAndResolve<T>(
+    navigate: (router: Router) => Promise<boolean>,
+    requiredRoutedComponentType?: Type<T>,
+  ): Promise<T | null> {
     const router = TestBed.inject(Router);
     let resolveFn!: () => void;
     const redirectTrackingPromise = new Promise<void>((resolve) => {
       resolveFn = resolve;
     });
-    afterNextNavigation(TestBed.inject(Router), resolveFn);
-    await router.navigateByUrl(url);
+    afterNextNavigation(router, resolveFn);
+    await navigate(router);
     await redirectTrackingPromise;
     this.fixture.detectChanges();
     const outlet = (this.fixture.componentInstance as RootCmp).outlet;

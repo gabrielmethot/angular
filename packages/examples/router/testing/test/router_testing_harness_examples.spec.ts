@@ -89,4 +89,45 @@ describe('navigate for test examples', () => {
     expect(harness.routeNativeElement?.innerHTML).toContain('books');
     // #enddocregion
   });
+
+  it('navigates with extras', async () => {
+    // #docregion NavigateWithExtras
+    @Component({template: 'search: {{ route.snapshot.queryParamMap.get("query") }}'})
+    class SearchCmp {
+      readonly route = inject(ActivatedRoute);
+    }
+
+    TestBed.configureTestingModule({
+      providers: [provideRouter([{path: 'search', component: SearchCmp}])],
+    });
+
+    const harness = await RouterTestingHarness.create();
+    const activatedComponent = await harness.navigate(
+      ['/search'],
+      {queryParams: {query: 'books'}, fragment: 'results'},
+      SearchCmp,
+    );
+    expect(TestBed.inject(Router).url).toEqual('/search?query=books#results');
+    expect(activatedComponent.route.snapshot.fragment).toEqual('results');
+    expect(harness.routeNativeElement?.innerHTML).toContain('books');
+    // #enddocregion
+  });
+
+  it('creates the harness with an initial navigation from commands', async () => {
+    @Component({template: ''})
+    class SearchCmp {}
+
+    // #docregion CreateWithCommands
+    TestBed.configureTestingModule({
+      providers: [provideRouter([{path: 'search', component: SearchCmp}])],
+    });
+
+    const harness = await RouterTestingHarness.create(['/search'], {
+      queryParams: {query: 'books'},
+      fragment: 'results',
+    });
+    expect(TestBed.inject(Router).url).toEqual('/search?query=books#results');
+    expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(SearchCmp);
+    // #enddocregion
+  });
 });
